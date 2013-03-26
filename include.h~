@@ -1,0 +1,27 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+#define INIT 0x00
+#define REGIST 0x01
+#define LOGON 0x02
+#define LOGOFF 0x03
+#define HEARTBEAT 0x04
+#define MESSAGE 0x05
+#define ONLINEFRIENDS 0x06
+#define UPDATE 0x07
+
+#define REFUSE 0x00
+#define ACCEPT 0x01
+#define REQUEST 0x03
+#define REPLY 0x04
+
+
+#define SERV_PORT 3000
+#define MAXLINE 1024
+#define HEADLINE 27
+#define SERV_IP 
