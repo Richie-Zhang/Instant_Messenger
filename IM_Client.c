@@ -12,12 +12,8 @@ int onlineUser;
 char userList[100][10];
 char usertochat[10];
 
-//pthread_mutex_t sendmutex = PTHREAD_MUTEX_INITIALIZER;
-//pthread_mutex_t recvmutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t sockmutex = PTHREAD_MUTEX_INITIALIZER;
 
-
-char SERV_IP[15] = "114.212.135.217";
+char SERV_IP[15] = "127.0.0.1";
 
 int main(int argc, char **argv){
 
@@ -38,9 +34,6 @@ int main(int argc, char **argv){
 		perror("Connect error\n");
 		exit(1);
 	}
-	
-	init_pkg(&sendpkg);
-	init_pkg(&recvpkg);
 
 	printf("Connect to the server successfully!!!\n");
 
@@ -49,7 +42,6 @@ int main(int argc, char **argv){
 
 
 	while(!loged){
-		pthread_mutex_lock (&sockmutex);
 		printf("Please choose the function(1--Regist; 2--Logon): \n");
 		scanf("%d", &func);
 		if(func == 1)	{
@@ -64,7 +56,6 @@ int main(int argc, char **argv){
 			printf("Enter error!!!\n");
 			exit(1);
 		}
-		pthread_mutex_unlock (&sockmutex);
 	}
 
 /*---------------------------------------------------------------------------------------------------------------------*/
@@ -86,37 +77,30 @@ int main(int argc, char **argv){
 		printf("Create thread error!\r\n");
 		exit(1);
 	}
-	
+
 	pthread_join(recvthread,NULL);
 	pthread_join(mainthread,NULL);
-	
+
 	return 0;
 }
 
 
 void mainThread(){
 	while(1){
-		pthread_mutex_lock (&sockmutex);
 		printf("Please choose the function\n(1--List online friends; 2--Send messages to one online friend; 3--Log off and exit): \n");
 		scanf("%d", &func);
-		
+
 		switch(func){
 			case(1):{listfri();	break;}
 			case(2):{chat();	break;}
 			case(3):{logoff();	break;}
 			default:{printf("Input error!!\n"); exit(1);}
 		}
-		pthread_mutex_unlock (&sockmutex);	
 	}
-	//sleep(10);
 }
 
 void receiveMsg(){
 	while(1){
-		printf("------");
-		pthread_mutex_lock (&sockmutex); 
-		//pthread_mutex_lock (&recvmutex);  
-		printf("------");
 		if(recv(sockfd, (void *)&recvpkg, MAXLINE, 0) == 0){	//
 			perror("Receive error\n");
 			exit(1);
@@ -125,12 +109,27 @@ void receiveMsg(){
 			case(HEARTBEAT):	{sendheart();	break;}
 			case(MESSAGE):		{printf("%s : %s\n", recvpkg.srcuser, recvpkg.message);	break;}
 			case(UPDATE):	{updatelist();	break;}
+			case(ONLINEFRIENDS):	{showlist(); break;}
 			default:{printf("Unknown package");}
 		}
-		//pthread_mutex_unlock (&recvmutex);
-		pthread_mutex_unlock (&sockmutex);  
+		memset(&recvpkg, 0 , MAXLINE);
 	}
-	//sleep(10);
+}
+
+
+void showlist(){
+	onlineUser = recvpkg.status - 0x00;
+	int i;
+	for(i = 0 ; i < onlineUser ; i++){
+		sscanf(&recvpkg.message[10*i],"%s",userList[i]); 
+	}
+	printf("There are %d friends online, their username follows:\n", onlineUser);
+	for(i = 0 ; i < onlineUser ; i++){
+		printf("%d.%s,	",  i+1 , userList[i]);
+		if(i%5 == 4)
+			printf("\n");
+	}
+	printf("\n");
 }
 
 
@@ -149,16 +148,18 @@ void regist(){
 		scanf("%s", username);
 		printf("password(less than 20 char):");
 		scanf("%s", password);
-		
-		
+
+
 		//pthread_mutex_lock (&sendmutex);  //
+		memset(&sendpkg, 0 , MAXLINE);
+		init_pkg(&sendpkg);
 		sendpkg.service = REGIST;
 		strcpy(sendpkg.srcuser, username);
 		strcpy(sendpkg.message, password); 
 		sendpkg.length = strlen(password);
 		send(sockfd, (void *)&sendpkg, sendpkg.length + HEADLINE, 0);	//将用户名和密码信息send到服务器
 		//pthread_mutex_unlock (&sendmutex);  
-		
+
 		//pthread_mutex_lock (&recvmutex);  
 		if(recv(sockfd, (void *)&recvpkg, MAXLINE, 0) == 0){	//receive服务器返回的数据	
 			perror("Receive error\n");
@@ -171,6 +172,7 @@ void regist(){
 			printf("Register successfully !!!\n");
 		}
 		//pthread_mutex_unlock (&recvmutex); 
+		memset(&recvpkg, 0 , MAXLINE);
 
 	}
 }
@@ -184,15 +186,17 @@ void logon(){
 		scanf("%s", username);
 		printf("password(less than 20 char):");
 		scanf("%s", password);
-		
+
 		//pthread_mutex_lock (&sendmutex);  
+		memset(&sendpkg, 0 , MAXLINE);
+		init_pkg(&sendpkg);
 		sendpkg.service = LOGON;
 		strcpy(sendpkg.srcuser, username);
 		strcpy(sendpkg.message, password); 
 		sendpkg.length = strlen(password);
-		send(sockfd, (void *)&sendpkg, sendpkg.length + HEADLINE, 0);	//将用户名和密码信息send到服务器
+		int i = send(sockfd, (void *)&sendpkg, sendpkg.length + HEADLINE, 0);	//将用户名和密码信息send到服务器
 		//pthread_mutex_unlock (&sendmutex);  
-		
+		printf("%d",i);
 		//pthread_mutex_lock (&recvmutex);  
 		if(recv(sockfd, (void *)&recvpkg, MAXLINE, 0) == 0){	//receive服务器返回的数据	
 			perror("Receive error\n");
@@ -205,41 +209,21 @@ void logon(){
 			printf("Login on successfully !!!\n");
 			loged = 1;
 		}
+		memset(&recvpkg, 0 , MAXLINE);
 		//pthread_mutex_unlock (&recvmutex);
 	}
 }
 
 void listfri(){
-	//pthread_mutex_lock (&sendmutex);  
+	//pthread_mutex_lock (&sendmutex);
+	memset(&sendpkg, 0 , MAXLINE);
+	init_pkg(&sendpkg);  
 	sendpkg.service = ONLINEFRIENDS;
 	strcpy(sendpkg.srcuser, username);
 	sendpkg.status = REQUEST;
 	send(sockfd, (void *)&sendpkg, HEADLINE, 0);	//向服务器请求在线好友列表
 	//pthread_mutex_unlock (&sendmutex);  
-	
-	//pthread_mutex_lock (&recvmutex);  
-	if(recv(sockfd, (void *)&recvpkg, MAXLINE, 0) == 0){	//receive服务器返回的好友列表
-		perror("Receive error\n");
-		exit(1);
-	}
-	if(recvpkg.service == ONLINEFRIENDS){
-		onlineUser = recvpkg.status - 0x00;
-		int i;
-		for(i = 0 ; i < onlineUser ; i++){
-			sscanf(&recvpkg.message[10*i],"%s",userList[i]); 
-		}
-		printf("There are %d friends online, their username follows:\n", onlineUser);
-		for(i = 0 ; i < onlineUser ; i++){
-			printf("%d.%s,	",  i+1 , userList[i]);
-			if(i%5 == 4)
-				printf("\n");
-		}
-		printf("\n");
-	}
-	else{
-		printf("Faild to get the list of online friends, please try later !!!\n");
-	}
-	//pthread_mutex_unlock (&recvmutex);  
+
 }
 
 void chat(){
@@ -257,6 +241,8 @@ void chat(){
 		printf("Please enter the message you want to sent to him(her):\n");
 		scanf("%s", message);
 		//pthread_mutex_lock (&sendmutex);  
+		memset(&sendpkg, 0 , MAXLINE);
+		init_pkg(&sendpkg);
 		strcpy(sendpkg.message , message);
 		sendpkg.service = MESSAGE;
 		strcpy(sendpkg.srcuser, username);
@@ -270,6 +256,8 @@ void chat(){
 
 void logoff(){
 	//pthread_mutex_lock (&sendmutex);  
+	memset(&sendpkg, 0 , MAXLINE);
+	init_pkg(&sendpkg);
 	sendpkg.service = LOGOFF;
 	strcpy(sendpkg.srcuser, username);
 	send(sockfd, (void *)&sendpkg, HEADLINE, 0);	//向服务器通知下线
@@ -281,6 +269,9 @@ void logoff(){
 
 void sendheart(){
 	//pthread_mutex_lock (&sendmutex);  
+	printf("HeartBeat\n");
+	memset(&sendpkg, 0 , MAXLINE);
+	init_pkg(&sendpkg);
 	sendpkg.service = HEARTBEAT;
 	sendpkg.status = REPLY;
 	strcpy(sendpkg.srcuser, username);
@@ -311,5 +302,4 @@ void updatelist(){
 		onlineUser--;
 	}
 }
-
 

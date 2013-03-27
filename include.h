@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -36,7 +37,7 @@ struct Package{
 	char status;
 	char srcuser[10];
 	char desuser[10];
-	char message[900];
+	char message[996];
 };
 
 struct Account{
@@ -58,12 +59,16 @@ void sendheart();
 void updatelist();
 void receiveMsg();
 void init_pkg(struct Package *pkg);
-void handleThread((void*)connfd);
-void handleRegist();
-void handleLogon();
-void handleLogoff();
-void handleMessage();
-void handleOnlinefriends();
+void handleThread(void* connfd);
+void handleRegist(int connfd);
+void handleLogon(int connfd);
+void handleLogoff(int connfd);
+void handleMessage(int connfd);
+void handleOnlinefriends(int connfd);
 void broadcast(char *username, int type);
 void mainThread();
-
+void showlist();
+void handleHeartbeat(int connfd);
+void checkheartbeat();
+void sendheartbeat();
+void heartBeatThread();
