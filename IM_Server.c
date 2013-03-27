@@ -66,6 +66,7 @@ void handleThread(void * fd){
 			case(LOGOFF):	{handleLogoff(connfd);break;}
 			case(HEARTBEAT):{handleHeartbeat(connfd);	break;}
 			case(MESSAGE):	{handleMessage(connfd);	break;}
+			case(INFORM):	{handleInform(connfd);	break;}
 			case(ONLINEFRIENDS):{handleOnlinefriends(connfd);	break;}
 			default:		{printf("Unknown package!!!\n");}
 		}
@@ -113,36 +114,50 @@ void handleLogon(int connfd){
 	printf("User logon, the username id %s,the password is %s   ",username,password);
 	int i;
 	int success = 0;
-	for(i = 0 ; i < user ; i++){
-		if(strcmp(userList[i].username,username) == 0)
+	for(i = 0 ; i < online ; i++){
+		if(strcmp(onlineUser[i].username,username) == 0)
 			break;
 	}
-	if(i < user){
-		if(strcmp(userList[i].password,password) == 0){
-			pthread_mutex_lock(&mutex);
-			strcpy(onlineUser[online].username,username);
-			onlineUser[online].connfd = connfd;
-			online++;
-			pthread_mutex_unlock(&mutex);
-			memset(&sendpkg, 0 , MAXLINE);
-			init_pkg(&sendpkg);
-			sendpkg.service = LOGON;
-			strcpy(sendpkg.srcuser, username);
-			sendpkg.status = ACCEPT;
-			send(connfd, (void *)&sendpkg, HEADLINE, 0);
-			success = 1;
-			broadcast(username,1);
-			printf("Logon successfully\n");			
-		}
-	}
-	if(!success){
+	if(i < online){
 		memset(&sendpkg, 0 , MAXLINE);
 		init_pkg(&sendpkg);
 		sendpkg.service = LOGON;
 		strcpy(sendpkg.srcuser, username);
-		sendpkg.status = REFUSE;
+		sendpkg.status = REPEAT;
 		send(connfd, (void *)&sendpkg, HEADLINE, 0);
-		printf("Logon failed\n");
+	}
+	else{
+		for(i = 0 ; i < user ; i++){
+			if(strcmp(userList[i].username,username) == 0)
+				break;
+		}
+		if(i < user){
+			if(strcmp(userList[i].password,password) == 0){
+				pthread_mutex_lock(&mutex);
+				strcpy(onlineUser[online].username,username);
+				onlineUser[online].connfd = connfd;
+				online++;
+				pthread_mutex_unlock(&mutex);
+				memset(&sendpkg, 0 , MAXLINE);
+				init_pkg(&sendpkg);
+				sendpkg.service = LOGON;
+				strcpy(sendpkg.srcuser, username);
+				sendpkg.status = ACCEPT;
+				send(connfd, (void *)&sendpkg, HEADLINE, 0);
+				success = 1;
+				broadcast(username,1);
+				printf("Logon successfully\n");			
+			}
+		}
+		if(!success){
+			memset(&sendpkg, 0 , MAXLINE);
+			init_pkg(&sendpkg);
+			sendpkg.service = LOGON;
+			strcpy(sendpkg.srcuser, username);
+			sendpkg.status = REFUSE;
+			send(connfd, (void *)&sendpkg, HEADLINE, 0);
+			printf("Logon failed\n");
+		}
 	}
 }
 
@@ -155,7 +170,7 @@ void handleLogoff(int connfd){
 		if(strcmp(userList[i].username, username) == 0)
 			break;
 	}
-	close(onlineUser[i].connfd);
+	//close(onlineUser[i].connfd);
 	for(j = i ; i < online-2 ; j++){
 		strcpy(onlineUser[j].username,onlineUser[j+1].username);
 		onlineUser[j].connfd = onlineUser[j+1].connfd;
@@ -186,6 +201,23 @@ void handleMessage(int connfd){
 			send(fd, (void *)&sendpkg, sendpkg.length + HEADLINE, 0);
 			printf("send successfully\n");
 			break;
+		}
+	}
+	pthread_mutex_unlock(&mutex);
+}
+
+void handleInform(int connfd){
+	int i;
+	memset(&sendpkg, 0 , MAXLINE);
+	init_pkg(&sendpkg);
+	sendpkg.service = INFORM;
+	strcpy(sendpkg.srcuser, username);
+	strcpy(sendpkg.message, recvpkg.message);
+	sendpkg.length = recvpkg.length;
+	pthread_mutex_lock(&mutex);
+	for(i = 0 ; i < online ; i++){
+		if(strcmp(onlineUser[i].username,username)!=0){
+			send(onlineUser[i].connfd, (void *)&sendpkg, sendpkg.length + HEADLINE, 0);
 		}
 	}
 	pthread_mutex_unlock(&mutex);
@@ -260,7 +292,6 @@ void sendheartbeat(){
 }
 
 void checkheartbeat(){
-
 }
 
 void init_pkg(struct Package *pkg){

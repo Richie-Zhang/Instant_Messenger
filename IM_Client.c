@@ -40,17 +40,19 @@ int main(int argc, char **argv){
 /*---------------------------------------------------------------------------------------------------------------------*/
 //用户注册帐号，或者登录过程，成功登录则进行下一步操作
 
-
 	while(!loged){
-		printf("Please choose the function(1--Regist; 2--Logon): \n");
+		printf("Please choose the function  (1--Regist; 2--Logon ;3--exit): \n");
 		scanf("%d", &func);
+		vailduser = 0;
 		if(func == 1)	{
 			regist();	//用户注册帐号过程
-			vailduser = 0;
 		}
 		else if(func == 2)	{
 			logon();	//用户登录过程
-			vailduser = 0;
+		}
+		else if(func ==3 ) {
+			close(sockfd);
+			exit(0);
 		}
 		else{
 			printf("Enter error!!!\n");
@@ -62,7 +64,7 @@ int main(int argc, char **argv){
 //登录成功的用户选择查看在线好友，以及聊天功能
 
 	system("clear");
-	printf("You are online,and your username is %s", username);
+	printf("You are online,and your username is %s\n", username);
 
 	pthread_t recvthread;
 	int ret1 = pthread_create(&recvthread,NULL,(void*)receiveMsg,NULL);
@@ -86,16 +88,20 @@ int main(int argc, char **argv){
 
 
 void mainThread(){
+	printf("Please choose the function:\n1--List online friends; \n2--Send messages to one online friend; \n");
+	printf("3--Send message to all people online:  \n4--Log off and exit): \n");
 	while(1){
-		printf("Please choose the function\n(1--List online friends; 2--Send messages to one online friend; 3--Log off and exit): \n");
+		//printf("Please choose the function:\n1--List online friends; \n2--Send messages to one online friend; \n");
 		scanf("%d", &func);
 
 		switch(func){
 			case(1):{listfri();	break;}
 			case(2):{chat();	break;}
-			case(3):{logoff();	break;}
+			case(3):{inform();	break;}
+			case(4):{logoff();	break;}
 			default:{printf("Input error!!\n"); exit(1);}
 		}
+		if(!loged)	break;
 	}
 }
 
@@ -107,7 +113,7 @@ void receiveMsg(){
 		}
 		switch (recvpkg.service){
 			case(HEARTBEAT):	{sendheart();	break;}
-			case(MESSAGE):		{printf("%s : %s\n", recvpkg.srcuser, recvpkg.message);	break;}
+			case(MESSAGE):	case(INFORM):		{printf("%s : %s\n", recvpkg.srcuser, recvpkg.message);	break;}
 			case(UPDATE):	{updatelist();	break;}
 			case(ONLINEFRIENDS):	{showlist(); break;}
 			default:{printf("Unknown package");}
@@ -209,6 +215,9 @@ void logon(){
 			printf("Login on successfully !!!\n");
 			loged = 1;
 		}
+		else if(recvpkg.status == REPEAT){
+			printf("The user has loged on, please wait a minute or try another username\n");
+		}
 		memset(&recvpkg, 0 , MAXLINE);
 		//pthread_mutex_unlock (&recvmutex);
 	}
@@ -254,6 +263,21 @@ void chat(){
 	}
 }
 
+void inform(){
+	char message[900];
+	printf("Please enter the inform you want to sent:\n");
+	scanf("%s", message);
+ 
+	memset(&sendpkg, 0 , MAXLINE);
+	init_pkg(&sendpkg);
+	strcpy(sendpkg.message , message);
+	sendpkg.service = INFORM;
+	strcpy(sendpkg.srcuser, username);
+	sendpkg.length = strlen(message);
+	send(sockfd, (void *)&sendpkg, sendpkg.length + HEADLINE, 0);	//发送消息至服务器
+	printf("sent inform successfully\n");
+}
+
 void logoff(){
 	//pthread_mutex_lock (&sendmutex);  
 	memset(&sendpkg, 0 , MAXLINE);
@@ -265,6 +289,7 @@ void logoff(){
 	loged = 0;
 	system("clear");
 	printf("Log off successfully!!!\n");
+	close(sockfd);
 }
 
 void sendheart(){
