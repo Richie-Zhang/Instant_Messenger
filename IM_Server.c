@@ -9,16 +9,15 @@ struct Package sendpkg,recvpkg;
 struct sockaddr_in cliaddr, servaddr;
 char username[10];
 char password[20];
-
-
+int k;
 
 int main(int argc, char **argv){
 
-	init_pkg(sendpkg);
-	init_pkg(recvpkg);
+	init_pkg(&sendpkg);
+	init_pkg(&recvpkg);
 	user = 0;
 	online = 0;
-
+	k = 0;
 
 	if((listenfd = socket(AF_INET,SOCK_STREAM,0)) < 0){
 		perror("Problem in creating the socket\n");
@@ -33,7 +32,7 @@ int main(int argc, char **argv){
 	listen(listenfd, LISTENQ);
 	printf("Server running ... Waiting for connections.\n");
 	
-	pthread_t handlethread;
+	pthread_t handlethread[100];
 	
 	while(1){
 		clilen = sizeof(cliaddr);
@@ -41,21 +40,27 @@ int main(int argc, char **argv){
 		printf("Received request ...\n");
 		
 		
-		int ret = pthread_create(&handlethread,NULL,(void*)handleThread,NULL);
+		int ret = pthread_create(&handlethread[k],NULL,(void*)handleThread,(void *)connfd);
 		if (ret != 0){
 			printf("Create thread error!\r\n");
 			exit(1);
 		}
 		
-		pthread_join(handlethread,NULL);
+		pthread_join(handlethread[k],NULL);
+		k++ ;
 		
 	}
 	
 	return 0;
 }
 
-void handleThread(int connfd){
-	while((n = recv(connfd, (void *)&recvpkg, MAXLINE, 0) > 0)){
+void handleThread(void * connfd){
+	//pthread_mutex_t sendmutex = PTHREAD_MUTEX_INITIALIZER;
+	//pthread_mutex_t recvmutex = PTHREAD_MUTEX_INITIALIZER;
+	
+	//pthread_mutex_lock (&recvmutex);
+	while((n = recv((int)connfd, (void *)&recvpkg, MAXLINE, 0) > 0)){
+		printf("%c",recvpkg.service + 'a');
 		switch(recvpkg.service){
 			case(REGIST):	{handleRegist();break;}
 			case(LOGON):	{handleLogon();	break;}
@@ -67,12 +72,15 @@ void handleThread(int connfd){
 		}
 	}
 	if(n < 0)	printf("Read error\n");
+	//pthread_mutex_unlock (&recvmutex);
 	exit(0);
 }
 
 void handleRegist(){
+	
 	strcpy(username,recvpkg.srcuser);
 	strcpy(password,recvpkg.message);
+	printf("User regeist, the username id %s,the password is %s   ",username,password);
 	int i;
 	for(i = 0 ; i < user ; i++){
 		if(strcmp(userList[i].username,username) == 0)
@@ -86,18 +94,21 @@ void handleRegist(){
 		strcpy(sendpkg.srcuser, username);
 		sendpkg.status = ACCEPT;
 		send(connfd, (void *)&sendpkg, HEADLINE, 0);
+		printf("Regist successfully\n");
 	}
 	else{
 		sendpkg.service = REGIST;
 		strcpy(sendpkg.srcuser, username);
 		sendpkg.status = REFUSE;
 		send(connfd, (void *)&sendpkg, HEADLINE, 0);
+		printf("Regist failed\n");
 	}
 }
 
 void handleLogon(){
 	strcpy(username,recvpkg.srcuser);
 	strcpy(password,recvpkg.message);
+	printf("User logon, the username id %s,the password is %s   ",username,password);
 	int i;
 	int success = 0;
 	for(i = 0 ; i < user ; i++){
@@ -115,6 +126,7 @@ void handleLogon(){
 			send(connfd, (void *)&sendpkg, HEADLINE, 0);
 			success = 1;
 			broadcast(username,1);
+			printf("Logon successfully\n");			
 		}
 	}
 	if(!success){
@@ -122,11 +134,13 @@ void handleLogon(){
 		strcpy(sendpkg.srcuser, username);
 		sendpkg.status = REFUSE;
 		send(connfd, (void *)&sendpkg, HEADLINE, 0);
+		printf("Logon failed\n");
 	}
 }
 
 void handleLogoff(){
 	strcpy(username,recvpkg.srcuser);
+	printf("User logoff, the username id %s   ",username);
 	int i;
 	for(i = 0 ; i < user ; i++){
 		if(strcmp(onlineUser[i].username,username) == 0)
@@ -145,6 +159,7 @@ void handleLogoff(){
 		}
 		online--;
 		broadcast(username,0);
+		printf("Logoff successfully\n");
 	}
 }
 
@@ -152,6 +167,7 @@ void handleMessage(){
 	char desuser[10];
 	strcpy(username,recvpkg.srcuser);
 	strcpy(desuser,recvpkg.desuser);
+	printf("%s send message to %s : %s   ",username,desuser,recvpkg.message);
 	sendpkg.service = MESSAGE;
 	strcpy(sendpkg.srcuser, username);
 	strcpy(sendpkg.desuser, desuser);
@@ -162,6 +178,7 @@ void handleMessage(){
 		if(strcmp(desuser,onlineUser[i].username)==0){
 			fd = onlineUser[i].connfd;
 			send(fd, (void *)&sendpkg, sendpkg.length + HEADLINE, 0);
+			printf("send successfully\n");
 			break;
 		}
 	}	
@@ -169,14 +186,16 @@ void handleMessage(){
 
 void handleOnlinefriends(){
 	strcpy(username,recvpkg.srcuser);
+	printf("%s want to know online friends    ",username);
 	sendpkg.service = ONLINEFRIENDS;
 	strcpy(sendpkg.srcuser, username);
 	sendpkg.status = 0x00 + online;
 	int i;
 	for(i = 0 ; i < online ; i++){
-		strcpy(&sendpkg.message[20*i],onlineUser[i].username);
+		strcpy(&sendpkg.message[10*i],onlineUser[i].username);
 	}
-	send(connfd, (void *)&sendpkg, MAXLINE, 0);	
+	send(connfd, (void *)&sendpkg, HEADLINE + 10*online , 0);	
+	printf("success \n");
 }
 
 void broadcast(char *username, int type){		//通知所有在线用户，某用户上线或下线，上线1，下线0
@@ -219,9 +238,9 @@ void heartBeatThread(){
 	}
 }
 
-void init_pkg(struct Package pkg){
-	strcpy(pkg.proname, "ZRQP");
-	pkg.length = 0;
-	pkg.service = INIT;
+void init_pkg(struct Package *pkg){
+	strcpy(pkg->proname, "ZRQP");
+	pkg->length = 0;
+	pkg->service = INIT;
 }
 

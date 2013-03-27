@@ -24,7 +24,7 @@
 
 #define SERV_PORT 3000
 #define MAXLINE 1024
-#define HEADLINE 27
+#define HEADLINE 28
 #define LISTENQ 100
 
 
@@ -57,13 +57,13 @@ void logoff();
 void sendheart();
 void updatelist();
 void receiveMsg();
-void init_pkg(struct Package pkg);
-void handleThread(int connfd);
+void init_pkg(struct Package *pkg);
+void handleThread((void*)connfd);
 void handleRegist();
 void handleLogon();
 void handleLogoff();
 void handleMessage();
 void handleOnlinefriends();
 void broadcast(char *username, int type);
-
+void mainThread();
 
