@@ -52,6 +52,14 @@ struct OnlineAccount{
 	int connfd;
 };
 
+struct mythread{
+	int connfd;
+	pthread_t handlethread;
+	struct Package sendpkg;
+	struct Package recvpkg;
+	int used;
+};
+
 void regist();
 void logon();
 void listfri();
@@ -76,4 +84,4 @@ void handleHeartbeat(int connfd);
 void checkheartbeat();
 void sendheartbeat();
 void heartBeatThread();
-
+int findValid();

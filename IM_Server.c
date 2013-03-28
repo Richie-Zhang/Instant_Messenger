@@ -3,14 +3,15 @@
 int online,user;
 struct Account userList[100];
 struct OnlineAccount onlineUser[100];
-int listenfd, n , connfd[100];
+int listenfd, n;
 socklen_t clilen;
 struct Package sendpkg,recvpkg;
 struct sockaddr_in cliaddr, servaddr;
 char username[10];
 char password[20];
 int k;
-
+struct mythread childthread[100];
+pthread_t heartthread;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int main(int argc, char **argv){
@@ -32,26 +33,32 @@ int main(int argc, char **argv){
 	listen(listenfd, LISTENQ);
 	printf("Server running ... Waiting for connections.\n");
 
-	pthread_t heartthread;
 	int ret = pthread_create(&heartthread,NULL,(void*)heartBeatThread,NULL);
 	if (ret != 0){
 		printf("Create thread error!\r\n");
 		exit(1);
 	}
 
-	pthread_t handlethread[100];
-
 	while(1){
 		clilen = sizeof(cliaddr);
-		connfd[k] = accept(listenfd, (struct sockaddr*)&cliaddr, &clilen);
+		k = findValid();
+		childthread[k].connfd = accept(listenfd, (struct sockaddr*)&cliaddr, &clilen);
 		printf("Received request ...\n");
-
-		int ret = pthread_create(&handlethread[k],NULL,(void*)handleThread,(void *)connfd[k]);
-		if (ret != 0){
-			printf("Create thread error!\r\n");
+		if(k != -1){
+			childthread[k].used = 1;
+			int ret = pthread_create(&(childthread[k].handlethread),NULL,(void*)handleThread,(void *)childthread[k].connfd);
+			if (ret != 0){
+				printf("Create thread error!\r\n");
+				exit(1);
+			}
+			else{
+				printf("Succeed to create a thread!\r\n");
+			}	
+		}
+		else{
+			printf("Sorry, the server is busy!!!\n");
 			exit(1);
 		}
-		k++ ;
 	}
 	pthread_join(heartthread,NULL);
 	return 0;
@@ -69,10 +76,15 @@ void handleThread(void * fd){
 			case(INFORM):	{handleInform(connfd);	break;}
 			case(ONLINEFRIENDS):{handleOnlinefriends(connfd);	break;}
 			default:		{printf("Unknown package!!!\n");}
+			fflush(stdout);
 		}
 		memset(&recvpkg, 0 , MAXLINE);
 	}
-
+	
+	printf("The thread is dead\n");
+	
+	
+	//pthread_exit(NULL);
 }
 
 void handleRegist(int connfd){
@@ -277,6 +289,7 @@ void heartBeatThread(){
 void sendheartbeat(){
 	int i;
 	pthread_mutex_lock(&mutex);
+	online = 0;
 	for(i = 0 ; i < online ; i++){
 		printf("Send heartbeat to %s \n",onlineUser[i].username);
 		strcpy(sendpkg.srcuser, onlineUser[i].username);
@@ -284,7 +297,6 @@ void sendheartbeat(){
 		sendpkg.status = REQUEST;
 		send(onlineUser[i].connfd, (void *)&sendpkg, HEADLINE, 0);
 	}
-	online = 0;
 	pthread_mutex_unlock(&mutex);
 	sleep(5);
 	checkheartbeat();
@@ -298,4 +310,13 @@ void init_pkg(struct Package *pkg){
 	strcpy(pkg->proname, "ZRQP");
 	pkg->length = 0;
 	pkg->service = INIT;
+}
+
+int findValid(){
+	int i;
+	for( i = 0 ; i < 100 ; i++){
+		if(childthread[i].used != 1)
+			return i;
+	}
+	return -1;
 }
