@@ -53,11 +53,13 @@ struct OnlineAccount{
 };
 
 struct mythread{
+	char username[10];
 	int connfd;
 	pthread_t handlethread;
 	struct Package sendpkg;
 	struct Package recvpkg;
 	int used;
+	int loged;
 };
 
 void regist();
@@ -70,18 +72,19 @@ void sendheart();
 void updatelist();
 void receiveMsg();
 void init_pkg(struct Package *pkg);
-void handleThread(void* connfd);
-void handleRegist(int connfd);
-void handleLogon(int connfd);
-void handleLogoff(int connfd);
-void handleMessage(int connfd);
-void handleInform(int connfd);
-void handleOnlinefriends(int connfd);
+void handleThread(void* l);
+void handleRegist(int connfd,int index);
+void handleLogon(int connfd,int index);
+void handleLogoff(int connfd,int index);
+void handleMessage(int connfd,int index);
+void handleInform(int connfd,int index);
+void handleOnlinefriends(int connfd,int index);
 void broadcast(char *username, int type);
+void handleHeartbeat(int connfd,int index);
 void mainThread();
 void showlist();
-void handleHeartbeat(int connfd);
 void checkheartbeat();
 void sendheartbeat();
 void heartBeatThread();
 int findValid();
+void abnormal_logoff(char *username);

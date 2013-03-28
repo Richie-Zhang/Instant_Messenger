@@ -171,9 +171,9 @@ void regist(){
 			perror("Receive error\n");
 			exit(1);
 		}
-		if(recvpkg.service == REGIST && recvpkg.status == REFUSE)
+		if(recvpkg.status == REFUSE)
 			printf("The username you entered has been registed, please try another one.\n");
-		else if(recvpkg.service == REGIST && recvpkg.status == ACCEPT){
+		else if(recvpkg.status == ACCEPT){
 			validuser = 1;
 			printf("Register successfully !!!\n");
 		}
@@ -295,7 +295,8 @@ void logoff(){
 	loged = 0;
 	system("clear");
 	printf("Log off successfully!!!\n");
-	close(sockfd);
+	//close(sockfd);
+	exit(0);
 }
 
 void sendheart(){
